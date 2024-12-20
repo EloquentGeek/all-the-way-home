@@ -1,0 +1,220 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number in the format `v1.2.3`'
+        required: true
+        type: string
+
+env:
+  app_display_name: AllTheWayHome
+  app_id: eloquentgeek.allthewayhome
+  assets_path: assets
+  cargo_build_binary_name: home
+  git_lfs: true
+  upload_to_github: true
+  upload_to_itch: eloquentgeek/all-the-way-home
+
+jobs:
+  get-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get version number from tag
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "${GITHUB_OUTPUT}"
+    outputs:
+      version: ${{ inputs.version || steps.tag.outputs.tag }}
+
+  build:
+    needs:
+      - get-version
+    env:
+      version: ${{ needs.get-version.outputs.version }}
+    strategy:
+      matrix:
+        include:
+          - platform: web
+            binary_ext: .wasm
+            package_ext: .zip
+            profile: release
+            runner: ubuntu-latest
+            targets: wasm32-unknown-unknown
+
+          - platform: linux
+            features: bevy/wayland
+            package_ext: .zip
+            profile: release-native
+            runner: ubuntu-latest
+            targets: x86_64-unknown-linux-gnu
+
+          - platform: windows
+            binary_ext: .exe
+            package_ext: .zip
+            profile: release-native
+            runner: windows-latest
+            targets: x86_64-pc-windows-msvc
+
+          - platform: macos
+            app_suffix: .app/Contents/MacOS
+            package_ext: .dmg
+            profile: release-native
+            runner: macos-latest
+            targets: x86_64-apple-darwin aarch64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - run: |
+          echo "app_binary_name=${app_binary_name:=${{ env.cargo_build_binary_name }}}" >> "${GITHUB_ENV}"
+          echo "app_package_name=${app_package_name:=${app_binary_name}}" >> "${GITHUB_ENV}"
+          echo "app_display_name=${app_display_name:=${app_package_name}}" >> "${GITHUB_ENV}"
+          echo "app_short_name=${app_short_name:=${app_display_name}}" >> "${GITHUB_ENV}"
+
+          echo "app=tmp/app/${app_package_name}" >> "${GITHUB_ENV}"
+          echo "package=${app_package_name}-"'${{ matrix.platform }}${{ matrix.package_ext }}' >> "${GITHUB_ENV}"
+
+          if [ '${{ matrix.platform }}' == 'macos' ]; then
+            echo 'MACOSX_DEPLOYMENT_TARGET=11.0' >> "${GITHUB_ENV}" # macOS 11.0 Big Sur is the first version to support universal binaries.
+            echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "${GITHUB_ENV}"
+          fi
+      - uses: actions/checkout@v4
+        with:
+          lfs: ${{ env.git_lfs }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
+      - uses: Leafwing-Studios/cargo-cache@v2
+        with:
+          sweep-cache: true
+      - if: ${{ matrix.platform == 'linux' }}
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+      - run: rm -rf tmp; mkdir -p tmp/binary '${{ env.app }}'
+      - if: ${{ matrix.platform == 'web' }}
+        uses: cargo-bins/cargo-binstall@v1.9.0
+      - if: ${{ matrix.platform == 'web' }}
+        run: |
+          cargo binstall --no-confirm trunk wasm-bindgen-cli wasm-opt
+          trunk build --locked --release --dist '${{ env.app }}'
+      - if: ${{ matrix.platform != 'web' }}
+        run: |
+          for target in ${{ matrix.targets }}; do
+            cargo build --locked --profile='${{ matrix.profile }}' --target="${target}" --no-default-features --features='${{ matrix.features }}'
+            mv target/"${target}"/'${{ matrix.profile }}/${{ env.cargo_build_binary_name }}${{ matrix.binary_ext }}' tmp/binary/"${target}"'${{ matrix.binary_ext }}'
+          done
+      - if: ${{ matrix.platform != 'web' }}
+        run: |
+          if [ '${{ matrix.platform }}' == 'macos' ]; then
+            lipo tmp/binary/*'${{ matrix.binary_ext }}' -create -output '${{ env.app }}/${{ env.app_binary_name }}${{ matrix.binary_ext }}'
+          else
+            mv tmp/binary/*'${{ matrix.binary_ext }}' '${{ env.app }}/${{ env.app_binary_name }}${{ matrix.binary_ext }}'
+          fi
+      - if: ${{ matrix.platform != 'web' }}
+        run: cp -r ./'${{ env.assets_path }}' '${{ env.app }}' || true # Ignore error if assets folder does not exist
+      - if: ${{ matrix.platform == 'macos' }}
+        run: |
+          cat >'${{ env.app }}/../Info.plist' <<EOF
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+                <dict>
+                    <key>CFBundleDevelopmentRegion</key>
+                    <string>en</string>
+                    <key>CFBundleDisplayName</key>
+                    <string>${{ env.app_display_name }}</string>
+                    <key>CFBundleExecutable</key>
+                    <string>${{ env.app_binary_name }}</string>
+                    <key>CFBundleIdentifier</key>
+                    <string>${{ env.app_id }}</string>
+                    <key>CFBundleName</key>
+                    <string>${{ env.app_short_name }}</string>
+                    <key>CFBundleShortVersionString</key>
+                    <string>${{ env.version }}</string>
+                    <key>CFBundleVersion</key>
+                    <string>${{ env.version }}</string>
+                    <key>CFBundleInfoDictionaryVersion</key>
+                    <string>6.0</string>
+                    <key>CFBundlePackageType</key>
+                    <string>APPL</string>
+                    <key>CFBundleSupportedPlatforms</key>
+                    <array>
+                        <string>MacOSX</string>
+                    </array>
+                </dict>
+            </plist>
+          EOF
+      - if: ${{ matrix.platform != 'windows' }}
+        working-directory: tmp/app
+        run: |
+          if [ '${{ matrix.platform }}' == 'macos' ]; then
+            ln -s /Applications .
+            hdiutil create -fs HFS+ -volname '${{ env.app_package_name }}' -srcfolder . '${{ env.package }}'
+          else
+            zip --recurse-paths '${{ env.package }}' '${{ env.app_package_name }}'
+          fi
+      - if: ${{ matrix.platform == 'windows' }}
+        working-directory: tmp/app
+        shell: pwsh
+        run: Compress-Archive -Path '${{ env.app_package_name }}' -DestinationPath '${{ env.package }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          path: tmp/app/${{ env.package }}
+          name: package-${{ matrix.platform }}
+          retention-days: 1
+      - if: ${{ env.upload_to_github == 'true' }}
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: tmp/app/${{ env.package }}
+          asset_name: ${{ env.package }}
+          release_name: ${{ env.version }}
+          tag: ${{ env.version }}
+          overwrite: true
+
+  # Check if upload to itch.io is enabled.
+  # This is needed because the `env` context can't be used in the `if:` condition of a job:
+  # https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability
+  check-upload-to-itch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Do nothing
+        run: 'true'
+    outputs:
+      target: ${{ env.upload_to_itch }}
+
+  upload-to-itch:
+    runs-on: ubuntu-latest
+    needs:
+      - get-version
+      - check-upload-to-itch
+      - build
+    if: ${{ needs.check-upload-to-itch.outputs.target != '' }}
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: tmp
+      - run: |
+          curl -L -o butler.zip 'https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default'
+          unzip butler.zip
+          chmod +x butler
+          ./butler -V
+      - env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_CREDENTIALS }}
+        run: |
+          for channel in $(ls tmp); do
+            ./butler push \
+              --fix-permissions \
+              --userversion='${{ needs.get-version.outputs.version }}' \
+              tmp/"${channel}"/* \
+              '${{ env.upload_to_itch }}':"${channel#package-}"
+          done
