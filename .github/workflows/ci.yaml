@@ -24,9 +24,9 @@ jobs:
         with:
           sweep-cache: true
       - run: |
-          cargo test --locked --workspace --all-features --all-targets
+          cargo test --workspace --all-features --all-targets
           # Workaround for https://github.com/rust-lang/cargo/issues/6669
-          cargo test --locked --workspace --all-features --doc
+          cargo test --workspace --all-features --doc
 
   clippy:
     name: Clippy
@@ -41,7 +41,7 @@ jobs:
       - uses: Leafwing-Studios/cargo-cache@v2
         with:
           sweep-cache: true
-      - run: cargo clippy --locked --workspace --all-targets --all-features -- --deny warnings
+      - run: cargo clippy --workspace --all-targets --all-features -- --deny warnings
 
   format:
     name: Format
@@ -65,4 +65,4 @@ jobs:
       - uses: Leafwing-Studios/cargo-cache@v2
         with:
           sweep-cache: true
-      - run: cargo doc --locked --workspace --all-features --document-private-items --no-deps
+      - run: cargo doc --workspace --all-features --document-private-items --no-deps
