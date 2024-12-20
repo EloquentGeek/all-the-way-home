@@ -59,12 +59,12 @@ jobs:
             runner: windows-latest
             targets: x86_64-pc-windows-msvc
 
-          - platform: macos
-            app_suffix: .app/Contents/MacOS
-            package_ext: .dmg
-            profile: release-native
-            runner: macos-latest
-            targets: x86_64-apple-darwin aarch64-apple-darwin
+          # - platform: macos
+          #   app_suffix: .app/Contents/MacOS
+          #   package_ext: .dmg
+          #   profile: release-native
+          #   runner: macos-latest
+          #   targets: x86_64-apple-darwin aarch64-apple-darwin
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: write
