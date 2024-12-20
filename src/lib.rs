@@ -1,3 +1,4 @@
+mod assets;
 #[cfg(feature = "dev")]
 mod dev_tools;
 mod screens;
@@ -47,10 +48,8 @@ impl Plugin for GamePlugin {
                 }),
         );
 
-        // Add other plugins.
-        app.add_plugins((screens::plugin,));
+        app.add_plugins((assets::plugin, screens::plugin));
 
-        // Enable dev tools for dev builds.
         #[cfg(feature = "dev")]
         app.add_plugins(dev_tools::plugin);
     }
