@@ -91,19 +91,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "all-the-way-home"
-version = "0.1.0"
-dependencies = [
- "avian2d",
- "bevy",
- "bevy_asset_loader",
- "bevy_sparse_tilemap",
- "leafwing-input-manager",
- "log",
- "tracing",
-]
-
-[[package]]
 name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2541,6 +2528,19 @@ checksum = "4b450e02a24a4a981c895be4cd2752e2401996c545971309730c4e812b984691"
 dependencies = [
  "glam",
  "serde",
+]
+
+[[package]]
+name = "home"
+version = "0.1.0"
+dependencies = [
+ "avian2d",
+ "bevy",
+ "bevy_asset_loader",
+ "bevy_sparse_tilemap",
+ "leafwing-input-manager",
+ "log",
+ "tracing",
 ]
 
 [[package]]
