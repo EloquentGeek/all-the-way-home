@@ -1,7 +1,7 @@
 # All The Way Home
 
 This is a puzzle game of exploration, survival, and rescue. Deeply inspired by the wonderful 1991
-Amiga title [Lemmings](https://en.wikipedia.org/wiki/Lemmings_(video_game)) and other titles from my
+Amiga title [Lemmings](https://en.wikipedia.org/wiki/Lemmings_(video_game)) and other games from my
 childhood. On the surface, you'll guide the intrepid (yet strangely incompetent) _Yups_ through
 layer after layer of increasingly difficult obstacles and inhospitable terrain.
 
@@ -43,6 +43,7 @@ acknowledge the following:
 - you have the ability to contribute any intellectual property under the dual licenses of this
   project
 - Eloquent Geek Games intends to sell this game
+
 If you are contributing IP from other permissively licensed code, you must provide proper
 attribution in the source code or metadata. Everyone deserves credit!
 
