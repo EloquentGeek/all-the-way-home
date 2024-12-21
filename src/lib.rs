@@ -2,6 +2,7 @@ mod assets;
 #[cfg(feature = "dev")]
 mod dev_tools;
 mod screens;
+mod ui;
 
 use bevy::{
     asset::AssetMetaCheck,
