@@ -2,9 +2,12 @@ use bevy::prelude::*;
 
 use crate::screens::Screen;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Screen::Title), spawn_title_screen);
 }
+
+#[derive(Component)]
+pub struct Button;
 
 fn spawn_title_screen(mut commands: Commands) {
     commands
@@ -23,18 +26,21 @@ fn spawn_title_screen(mut commands: Commands) {
                 font_size: 30.,
                 ..default()
             }));
+
+            p.spawn((Name::new("Start Button"), Button, Node {
+                align_items: AlignItems::Center,
+                height: Val::Px(65.0),
+                justify_content: JustifyContent::Center,
+                width: Val::Px(200.0),
+                ..default()
+            }))
+            .with_children(|p| {
+                p.spawn((Name::new("Button Text"), Text::new("Start")));
+            })
+            .observe(
+                |_ev: Trigger<Pointer<Click>>, mut next_state: ResMut<NextState<Screen>>| {
+                    next_state.set(Screen::Playing);
+                },
+            );
         });
 }
-
-// fn enter_gameplay_screen(_trigger: Trigger<OnPress>, mut next_screen: ResMut<NextState<Screen>>) {
-//     next_screen.set(Screen::Playing);
-// }
-//
-// fn enter_credits_screen(_trigger: Trigger<OnPress>, mut next_screen: ResMut<NextState<Screen>>) {
-//     next_screen.set(Screen::Credits);
-// }
-//
-// #[cfg(not(target_family = "wasm"))]
-// fn exit_app(_trigger: Trigger<OnPress>, mut app_exit: EventWriter<AppExit>) {
-//     app_exit.send(AppExit::Success);
-// }

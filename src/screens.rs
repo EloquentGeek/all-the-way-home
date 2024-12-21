@@ -1,4 +1,5 @@
 mod loading;
+mod playing;
 mod splash;
 mod title;
 
@@ -8,14 +9,19 @@ pub fn plugin(app: &mut App) {
     app.init_state::<Screen>();
     app.enable_state_scoped_entities::<Screen>();
 
-    app.add_plugins((loading::plugin, splash::plugin, title::plugin));
+    app.add_plugins((
+        loading::plugin,
+        playing::plugin,
+        splash::plugin,
+        title::plugin,
+    ));
 }
 
 #[derive(States, Debug, Hash, PartialEq, Eq, Clone, Default)]
 pub enum Screen {
     Loading,
     // Over,
-    // Playing,
+    Playing,
     #[default]
     Splash,
     Title,
