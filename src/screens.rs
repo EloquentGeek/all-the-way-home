@@ -7,7 +7,9 @@ use bevy::prelude::*;
 
 pub fn plugin(app: &mut App) {
     app.init_state::<Screen>();
+    app.init_state::<Game>();
     app.enable_state_scoped_entities::<Screen>();
+    app.enable_state_scoped_entities::<Game>();
 
     app.add_plugins((
         loading::plugin,
@@ -25,4 +27,12 @@ pub enum Screen {
     #[default]
     Splash,
     Title,
+}
+
+#[derive(SubStates, Clone, PartialEq, Eq, Hash, Debug, Default)]
+#[source(Screen = Screen::Playing)]
+pub enum Game {
+    #[default]
+    Playing,
+    Paused,
 }
