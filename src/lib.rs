@@ -8,6 +8,7 @@ use bevy::{
     asset::AssetMetaCheck,
     audio::{AudioPlugin, Volume},
     prelude::*,
+    window::WindowResolution,
 };
 
 pub struct GamePlugin;
@@ -36,6 +37,8 @@ impl Plugin for GamePlugin {
                         canvas: Some("#bevy".to_string()),
                         fit_canvas_to_parent: true,
                         prevent_default_event_handling: true,
+                        resolution: WindowResolution::new(1920., 1080.)
+                            .with_scale_factor_override(1.0),
                         ..default()
                     }
                     .into(),
