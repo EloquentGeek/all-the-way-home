@@ -1,20 +1,17 @@
 mod pause;
+mod playing;
 
 use crate::game::Game;
-use bevy::{input::common_conditions::input_just_pressed, prelude::*};
-
-use crate::screens::Screen;
+use bevy::prelude::*;
 
 pub fn plugin(app: &mut App) {
-    app.add_plugins(pause::plugin);
+    app.add_plugins((pause::plugin, playing::plugin));
     // app.add_systems(OnEnter(Screen::Playing), spawn_level);
 
     // app.load_resource::<PlayingMusic>();
     // app.add_systems(OnEnter(Screen::Playing), play_gameplay_music);
     // app.add_systems(OnExit(Screen::Playing), stop_music);
 }
-
-fn init(mut commands: Commands) {}
 
 // fn spawn_level(mut commands: Commands) {
 // commands.queue(spawn_level_command);
