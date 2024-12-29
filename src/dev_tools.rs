@@ -24,6 +24,11 @@ pub(super) fn plugin(app: &mut App) {
 
     // Avian
     app.add_plugins((FrameTimeDiagnosticsPlugin, PhysicsDebugPlugin::default()));
+    app.insert_gizmo_config(PhysicsGizmos::default(), GizmoConfig {
+        // Off by default, enables with toggle key
+        enabled: false,
+        ..default()
+    });
 }
 
 const TOGGLE_KEY: KeyCode = KeyCode::Backquote;

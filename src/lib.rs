@@ -54,7 +54,7 @@ impl Plugin for GamePlugin {
                 }),
         );
 
-        app.add_plugins(PhysicsPlugins::default());
+        app.add_plugins(PhysicsPlugins::default().with_length_unit(20.0));
 
         app.add_plugins((assets::plugin, screens::plugin, game::plugin));
 
