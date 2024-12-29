@@ -8,7 +8,7 @@ version = "0.1.0"
 avian2d = { git = "https://github.com/Jondolf/avian", branch = "main" }
 bevy = "0.15.0"
 bevy-inspector-egui = "0.28.0"
-bevy_asset_loader = { features = ["2d"], version = "0.22.0" }
+bevy_asset_loader = { features = ["2d", "standard_dynamic_assets"], version = "0.22.0" }
 bevy_sparse_tilemap = "0.4.0"
 leafwing-input-manager = "0.16.0"
 # Compile low-severity logs out of native builds for performance.

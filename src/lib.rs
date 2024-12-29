@@ -1,6 +1,7 @@
 mod assets;
 #[cfg(feature = "dev")]
 mod dev_tools;
+mod game;
 mod screens;
 mod ui;
 
@@ -52,7 +53,7 @@ impl Plugin for GamePlugin {
                 }),
         );
 
-        app.add_plugins((assets::plugin, screens::plugin));
+        app.add_plugins((assets::plugin, screens::plugin, game::plugin));
 
         #[cfg(feature = "dev")]
         app.add_plugins(dev_tools::plugin);

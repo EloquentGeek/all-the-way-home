@@ -39,7 +39,7 @@ fn spawn_title_screen(mut commands: Commands) {
             })
             .observe(
                 |_ev: Trigger<Pointer<Click>>, mut next_state: ResMut<NextState<Screen>>| {
-                    next_state.set(Screen::Playing);
+                    next_state.set(Screen::InGame);
                 },
             );
         });

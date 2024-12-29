@@ -1,10 +1,9 @@
 mod pause;
 
+use crate::game::Game;
 use bevy::{input::common_conditions::input_just_pressed, prelude::*};
 
 use crate::screens::Screen;
-
-use super::Game;
 
 pub fn plugin(app: &mut App) {
     app.add_plugins(pause::plugin);
@@ -13,12 +12,9 @@ pub fn plugin(app: &mut App) {
     // app.load_resource::<PlayingMusic>();
     // app.add_systems(OnEnter(Screen::Playing), play_gameplay_music);
     // app.add_systems(OnExit(Screen::Playing), stop_music);
-
-    app.add_systems(
-        Update,
-        pause.run_if(in_state(Screen::Playing).and(input_just_pressed(KeyCode::Escape))),
-    );
 }
+
+fn init(mut commands: Commands) {}
 
 // fn spawn_level(mut commands: Commands) {
 // commands.queue(spawn_level_command);
@@ -58,7 +54,3 @@ pub fn plugin(app: &mut App) {
 //         commands.entity(entity).despawn_recursive();
 //     }
 // }
-
-fn pause(mut game: ResMut<NextState<Game>>) {
-    game.set(Game::Paused);
-}

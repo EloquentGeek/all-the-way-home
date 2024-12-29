@@ -13,7 +13,11 @@ pub fn plugin(app: &mut App) {
 
     app.add_systems(
         Update,
-        pause.run_if(in_state(Game::Paused).and(input_just_pressed(KeyCode::Escape))),
+        pause.run_if(in_state(Game::Playing).and(input_just_pressed(KeyCode::Escape))),
+    );
+    app.add_systems(
+        Update,
+        unpause.run_if(in_state(Game::Paused).and(input_just_pressed(KeyCode::Escape))),
     );
 }
 
@@ -113,4 +117,7 @@ fn init(mut commands: Commands) {
 
 fn pause(mut game: ResMut<NextState<Game>>) {
     game.set(Game::Paused);
+}
+fn unpause(mut game: ResMut<NextState<Game>>) {
+    game.set(Game::Playing);
 }

@@ -8,10 +8,11 @@ use bevy::{
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
-use crate::screens::Screen;
+use crate::{game::Game, screens::Screen};
 
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(Update, log_transitions::<Screen>);
+    app.add_systems(Update, log_transitions::<Game>);
 
     app.add_plugins(DebugUiPlugin);
     app.add_plugins(WorldInspectorPlugin::default().run_if(input_toggle_active(false, TOGGLE_KEY)));
