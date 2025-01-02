@@ -8,6 +8,7 @@ use bevy::{
     input::common_conditions::{input_just_pressed, input_toggle_active},
     prelude::*,
 };
+#[cfg(feature = "dev")]
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 use crate::{game::Game, screens::Screen};
