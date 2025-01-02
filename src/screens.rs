@@ -1,4 +1,4 @@
-mod ingame;
+pub mod ingame;
 mod loading;
 mod splash;
 mod title;

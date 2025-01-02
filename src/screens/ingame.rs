@@ -1,5 +1,5 @@
-mod pause;
-mod playing;
+pub mod pause;
+pub mod playing;
 
 use crate::game::Game;
 use bevy::prelude::*;

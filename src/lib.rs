@@ -1,8 +1,8 @@
 mod assets;
 #[cfg(feature = "dev")]
 mod dev_tools;
-mod game;
-mod screens;
+pub mod game;
+pub mod screens;
 mod ui;
 
 use avian2d::PhysicsPlugins;
