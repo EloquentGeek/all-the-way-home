@@ -1,29 +1,37 @@
-use avian2d::prelude::*;
 use bevy::prelude::*;
 
-use crate::screens::ingame::playing::{MovementSpeed, Obstacle};
+use crate::{
+    assets::Characters,
+    physics::Gravity,
+    screens::{Screen, ingame::playing},
+};
+
+#[derive(Component, Debug, Default, Eq, PartialEq)]
+pub enum CharacterState {
+    #[default]
+    Falling,
+    Walking,
+}
 
 #[derive(Component, Debug)]
+#[require(CharacterState)]
 pub struct Yup;
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(PostProcessCollisions, collision_handler);
+    // TODO: this .after is a bit cursed, come up with better spawning logic.
+    app.add_systems(OnEnter(Screen::InGame), init.after(playing::init));
 }
 
-fn collision_handler(
-    mut collisions: ResMut<Collisions>,
-    obstacles: Query<Entity, With<Obstacle>>,
-    mut yups: Query<(Entity, &mut MovementSpeed), With<Yup>>,
-) {
-    // For now, we'll ignore all collisions between yups.
-    // TODO: sometimes blockers will need to be collided with!
-    collisions.retain(|c| yups.get(c.entity1).is_err() || yups.get(c.entity2).is_err());
-
-    for (yup, mut speed) in &mut yups {
-        for obstacle in &obstacles {
-            if collisions.contains(yup, obstacle) {
-                *speed = MovementSpeed(-speed.0);
-            }
-        }
-    }
+fn init(mut commands: Commands, characters: Res<Characters>) {
+    commands.spawn((
+        Name::new("Yup"),
+        Yup,
+        Gravity,
+        Sprite {
+            image: characters.yup.clone(),
+            ..default()
+        },
+        // TODO: should all yups be spawned on specific Z-value for easy handling?
+        Transform::from_xyz(500., 200., 1.),
+    ));
 }

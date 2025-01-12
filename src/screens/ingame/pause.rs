@@ -1,4 +1,3 @@
-use avian2d::prelude::*;
 use bevy::{input::common_conditions::input_just_pressed, prelude::*};
 
 use crate::screens::Screen;
@@ -116,12 +115,10 @@ fn init(mut commands: Commands) {
 //     }
 // }
 
-fn pause(mut game: ResMut<NextState<Game>>, mut time: ResMut<Time<Physics>>) {
+fn pause(mut game: ResMut<NextState<Game>>) {
     game.set(Game::Paused);
-    time.pause();
 }
 
-fn unpause(mut game: ResMut<NextState<Game>>, mut time: ResMut<Time<Physics>>) {
+fn unpause(mut game: ResMut<NextState<Game>>) {
     game.set(Game::Playing);
-    time.unpause();
 }

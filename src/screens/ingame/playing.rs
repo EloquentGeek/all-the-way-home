@@ -1,102 +1,122 @@
-use avian2d::{
-    math::{Scalar, Vector},
-    prelude::*,
-};
-use bevy::prelude::*;
+use bevy::{asset::RenderAssetUsages, prelude::*};
 
-use crate::{game::yup::Yup, screens::Screen};
+use crate::{assets::Levels, screens::Screen};
 
 pub fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Screen::InGame), init);
-    app.insert_resource(Gravity(Vector::NEG_Y * 1000.0));
+    // app.add_systems(FixedPreUpdate, set_level_mask);
+    app.add_systems(Update, draw_alpha);
 }
 
 #[derive(Component, Debug)]
-pub struct Platform;
+pub struct Level;
 
 #[derive(Component, Debug)]
 pub struct Obstacle;
 
 #[derive(Component)]
-pub struct MovementSpeed(pub Scalar);
+pub struct MovementSpeed(pub f32);
 
-fn init(
+pub fn init(
     mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut time: ResMut<Time<Physics>>,
+    textures: Res<Levels>,
 ) {
-    let platform = Sprite {
-        color: Color::srgba(0.7, 0.7, 0.8, 0.25),
-        custom_size: Some(Vec2::splat(50.0)),
-        ..default()
+    let buf = images.get(&textures.level).unwrap();
+    let mut img = buf.clone();
+    img.asset_usage = RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD;
+    let img_handle = images.add(img);
+
+    commands.spawn((
+        Name::new("Level"),
+        Level,
+        Mesh2d(meshes.add(Rectangle::new(1920., 1080.))),
+        MeshMaterial2d(materials.add(img_handle)),
+        StateScoped(Screen::InGame),
+    ));
+}
+
+fn draw_alpha(
+    mut images: ResMut<Assets<Image>>,
+    level: Query<&MeshMaterial2d<ColorMaterial>, With<Level>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mouse_button: Res<ButtonInput<MouseButton>>,
+    window: Single<&Window>,
+) {
+    if !mouse_button.pressed(MouseButton::Left) {
+        return;
+    }
+
+    let Ok(l) = level.get_single() else {
+        return;
     };
-    commands.spawn((
-        Name::new("Platform"),
-        Platform,
-        platform.clone(),
-        Collider::rectangle(50., 50.),
-        RigidBody::Static,
-        StateScoped(Screen::InGame),
-        Transform::from_xyz(0., 16. * 6., 0.).with_scale(Vec3::new(10., 0.5, 10.)),
-    ));
 
-    commands.spawn((
-        Name::new("Platform"),
-        Platform,
-        platform.clone(),
-        Collider::rectangle(50., 50.),
-        RigidBody::Static,
-        StateScoped(Screen::InGame),
-        Transform::from_xyz(400., -150., 0.).with_scale(Vec3::new(10., 0.5, 10.)),
-    ));
+    let Some(level_material) = materials.get(&l.0) else {
+        return;
+    };
 
-    commands.spawn((
-        Name::new("Obstacle"),
-        Obstacle,
-        platform.clone(),
-        Collider::rectangle(50., 50.),
-        RigidBody::Static,
-        StateScoped(Screen::InGame),
-        Transform::from_xyz(500., -112., 0.),
-    ));
+    let Some(texture) = &level_material.texture else {
+        return;
+    };
 
-    commands.spawn((
-        Name::new("Obstacle"),
-        Obstacle,
-        platform.clone(),
-        Collider::rectangle(50., 50.),
-        RigidBody::Static,
-        StateScoped(Screen::InGame),
-        Transform::from_xyz(200., -112., 0.),
-    ));
+    let Some(img) = images.get_mut(texture) else {
+        return;
+    };
 
-    commands.spawn((
-        Name::new("Yup"),
-        Yup,
-        Collider::circle(20.),
-        LockedAxes::ROTATION_LOCKED,
-        Mesh2d(meshes.add(Circle::new(20.))),
-        MeshMaterial2d(materials.add(Color::srgb(0.2, 0.7, 0.9))),
-        MovementSpeed(100.),
-        Restitution::ZERO.with_combine_rule(CoefficientCombine::Min),
-        RigidBody::Dynamic,
-        StateScoped(Screen::InGame),
-        Transform::from_xyz(0., 200., 0.),
-    ));
+    if let Some(cursor_pos) = window.physical_cursor_position() {
+        for x in (cursor_pos.x as u32) - 10..(cursor_pos.x as u32) + 10 {
+            for y in (cursor_pos.y as u32) - 10..(cursor_pos.y as u32) + 10 {
+                if let Ok(existing_colour) = img.get_color_at(x, y) {
+                    let _ = img.set_color_at(x, y, existing_colour.with_alpha(0.));
+                }
+            }
+        }
+        // TODO: This is just a workaround for an apparent regression from RRW, similar to old
+        // issue https://github.com/bevyengine/bevy/issues/1161.
+        materials.get_mut(&l.0);
+    }
+    // for x in 0..1920 {
+    //     for y in 0..1080 {
+    //         let _ = img.set_color_at(x, y, Color::srgba(1., 1., 1., 0.5));
+    //     }
+    // }
+}
 
-    commands.spawn((
-        Name::new("Yup"),
-        Yup,
-        Collider::circle(20.),
-        LockedAxes::ROTATION_LOCKED,
-        Mesh2d(meshes.add(Circle::new(20.))),
-        MeshMaterial2d(materials.add(Color::srgb(0.1, 0.6, 0.9))),
-        MovementSpeed(100.),
-        Restitution::ZERO.with_combine_rule(CoefficientCombine::Min),
-        RigidBody::Dynamic,
-        StateScoped(Screen::InGame),
-        Transform::from_xyz(-100., 500., 0.),
-    ));
-    time.unpause();
+fn set_level_mask(
+    mut images: ResMut<Assets<Image>>,
+    level: Single<&MeshMaterial2d<ColorMaterial>, With<Level>>,
+    materials: Res<Assets<ColorMaterial>>,
+) {
+    // NOTE: set alpha values by taking the fourth value of four bytes, which will be the alpha.
+    // From example cpu_draw:
+    //
+    // let pixel_bytes = image.pixel_bytes_mut(UVec3::new(x, y, 0)).unwrap();
+    // convert our f32 to u8
+    // pixel_bytes[3] = (a * u8::MAX as f32) as u8;
+    //
+    // note that get_color_at and set_color_at also exist, marginally slower but easier to read?
+
+    let Some(level_material) = materials.get(&level.0) else {
+        return;
+    };
+
+    let Some(texture) = &level_material.texture else {
+        return;
+    };
+
+    let Some(img) = images.get_mut(texture) else {
+        return;
+    };
+
+    for x in 0..1920 {
+        for y in 0..1080 {
+            if let Ok(col) = img.get_color_at(x, y) {
+                if col.alpha() > 0.5 {
+                    let _ = img.set_color_at(x, y, Color::srgba(1., 1., 1., 0.5));
+                }
+            }
+        }
+    }
 }

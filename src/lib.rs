@@ -2,10 +2,10 @@ mod assets;
 #[cfg(feature = "dev")]
 mod dev_tools;
 pub mod game;
+pub mod physics;
 pub mod screens;
 mod ui;
 
-use avian2d::PhysicsPlugins;
 use bevy::{
     asset::AssetMetaCheck,
     audio::{AudioPlugin, Volume},
@@ -54,9 +54,12 @@ impl Plugin for GamePlugin {
                 }),
         );
 
-        app.add_plugins(PhysicsPlugins::default().with_length_unit(20.0));
-
-        app.add_plugins((assets::plugin, screens::plugin, game::plugin));
+        app.add_plugins((
+            assets::plugin,
+            screens::plugin,
+            game::plugin,
+            physics::plugin,
+        ));
 
         #[cfg(feature = "dev")]
         app.add_plugins(dev_tools::plugin);
