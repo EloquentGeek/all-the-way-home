@@ -2711,6 +2711,7 @@ dependencies = [
  "bevy_sparse_tilemap",
  "leafwing-input-manager",
  "log",
+ "tiny_bail",
  "tracing",
 ]
 
@@ -4619,6 +4620,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tiny_bail"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "425cf2e86c5941892b64bcf4a89cc1b468c754ef4946d15a7244a17205e7424d"
+dependencies = [
+ "tracing",
+]
+
+[[package]]
 name = "tinystr"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4666,6 +4676,7 @@ version = "0.1.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "784e0ac535deb450455cbfa28a6f0df145ea1bb7ae51b821cf5e7927fdcfbdd0"
 dependencies = [
+ "log",
  "pin-project-lite",
  "tracing-attributes",
  "tracing-core",

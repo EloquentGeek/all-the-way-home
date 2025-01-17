@@ -20,6 +20,7 @@ tracing = { version = "0.1", features = [
     "max_level_debug",
     "release_max_level_warn",
 ] }
+tiny_bail = "0.4.3"
 
 
 [features]
@@ -35,6 +36,7 @@ dev = [
 ]
 dev_native = [
     "dev",
+    "bevy/wayland",
     # Enable asset hot reloading for native dev builds.
     "bevy/file_watcher",
     # Enable embedded asset hot reloading for native dev builds.

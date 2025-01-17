@@ -32,6 +32,6 @@ fn init(mut commands: Commands, characters: Res<Characters>) {
             ..default()
         },
         // TODO: should all yups be spawned on specific Z-value for easy handling?
-        Transform::from_xyz(500., 200., 1.),
+        Transform::from_xyz(0., 800., 1.),
     ));
 }

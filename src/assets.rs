@@ -8,7 +8,8 @@ pub fn plugin(app: &mut App) {
         LoadingState::new(Screen::Loading)
             .continue_to_state(Screen::Title)
             .load_collection::<Characters>()
-            .load_collection::<Levels>(),
+            .load_collection::<Levels>()
+            .load_collection::<Masks>(),
     );
 }
 
@@ -22,4 +23,10 @@ pub struct Levels {
 pub struct Characters {
     #[asset(path = "textures/yup.png")]
     pub yup: Handle<Image>,
+}
+
+#[derive(AssetCollection, Resource)]
+pub struct Masks {
+    #[asset(path = "textures/cursor-mask.png")]
+    pub cursor: Handle<Image>,
 }

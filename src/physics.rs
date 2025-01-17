@@ -1,8 +1,10 @@
 use bevy::prelude::*;
+use tiny_bail::prelude::*;
 
 use crate::{
+    MainCamera,
     game::yup::{CharacterState, Yup},
-    screens::ingame::playing::Level,
+    screens::ingame::playing::TerrainRenderTarget,
 };
 
 pub fn plugin(app: &mut App) {
@@ -21,41 +23,27 @@ fn gravity(mut has_gravity: Query<(&CharacterState, &mut Transform), With<Gravit
 }
 
 fn collision(
-    camera: Single<(&Camera, &GlobalTransform), With<Camera2d>>,
+    camera: Single<(&Camera, &GlobalTransform), With<MainCamera>>,
     images: Res<Assets<Image>>,
-    level: Query<&MeshMaterial2d<ColorMaterial>, With<Level>>,
-    materials: Res<Assets<ColorMaterial>>,
+    terrain: Res<TerrainRenderTarget>,
     mut yups: Query<(&mut CharacterState, &Transform), With<Yup>>,
 ) {
-    let Ok(l) = level.get_single() else {
-        return;
-    };
-
-    let Some(level_material) = materials.get(&l.0) else {
-        return;
-    };
-
-    let Some(texture) = &level_material.texture else {
-        return;
-    };
-
-    let Some(img) = images.get(texture) else {
-        return;
-    };
+    let level_texture = r!(images.get(&terrain.texture));
 
     let (camera, camera_transform) = camera.into_inner();
     for (mut state, t) in &mut yups {
         // TODO: better way to determine this?
         let feet = t.translation + Vec3::new(0., -18., 0.);
-        if let Ok(collision_point) = camera.world_to_viewport(camera_transform, feet) {
-            let Ok(check) = img.get_color_at(collision_point.x as u32, collision_point.y as u32)
-            else {
-                return;
-            };
-            if check.alpha() > 0. {
-                // Hey, we collided with something!
-                *state = CharacterState::Walking;
-            }
+        let collision_point = r!(camera.world_to_viewport(camera_transform, feet));
+        let pixel =
+            r!(level_texture.get_color_at(collision_point.x as u32, collision_point.y as u32));
+        if pixel.alpha() > 0. {
+            // Hey, we collided with something!
+            *state = CharacterState::Walking;
+            dbg!(pixel);
+        } else {
+            // We're still falling, OR we've STARTED falling again.
+            *state = CharacterState::Falling;
         }
     }
 }

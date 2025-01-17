@@ -33,12 +33,14 @@ impl Plugin for GamePlugin {
                     meta_check: AssetMetaCheck::Never,
                     ..default()
                 })
+                .set(ImagePlugin::default_nearest())
                 .set(WindowPlugin {
                     primary_window: Window {
                         title: "all the way home".to_string(),
                         canvas: Some("#bevy".to_string()),
                         fit_canvas_to_parent: true,
                         prevent_default_event_handling: true,
+                        resizable: false,
                         resolution: WindowResolution::new(1920., 1080.)
                             .with_scale_factor_override(1.0),
                         ..default()
@@ -73,6 +75,9 @@ enum AppSet {
     Update,
 }
 
+#[derive(Component)]
+pub struct MainCamera;
+
 fn spawn_camera(mut commands: Commands) {
-    commands.spawn((Name::new("Camera"), Camera2d, IsDefaultUiCamera));
+    commands.spawn((Name::new("Camera"), Camera2d, IsDefaultUiCamera, MainCamera));
 }

@@ -1,11 +1,30 @@
-use bevy::{asset::RenderAssetUsages, prelude::*};
+use bevy::{
+    prelude::*,
+    render::{
+        render_resource::{AsBindGroup, ShaderRef, TextureUsages},
+        view::RenderLayers,
+    },
+    sprite::{Material2d, Material2dPlugin},
+};
+use tiny_bail::prelude::*;
 
-use crate::{assets::Levels, screens::Screen};
+use crate::{
+    assets::{Levels, Masks},
+    screens::Screen,
+};
+
+const SHADER_ASSET_PATH: &str = "shaders/mouse_shader.wgsl";
 
 pub fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Screen::InGame), init);
-    // app.add_systems(FixedPreUpdate, set_level_mask);
-    app.add_systems(Update, draw_alpha);
+    app.init_resource::<TerrainRenderTarget>();
+    app.add_systems(Update, draw_alpha_gpu.run_if(in_state(Screen::InGame)));
+    app.add_plugins(Material2dPlugin::<LevelMaterial>::default());
+}
+
+#[derive(Resource, Default)]
+pub struct TerrainRenderTarget {
+    pub texture: Handle<Image>,
 }
 
 #[derive(Component, Debug)]
@@ -17,31 +36,93 @@ pub struct Obstacle;
 #[derive(Component)]
 pub struct MovementSpeed(pub f32);
 
+#[derive(Asset, Default, TypePath, AsBindGroup, Debug, Clone)]
+pub struct LevelMaterial {
+    #[uniform(0)]
+    pub cursor_position: Vec2,
+    // TODO: find out more about samplers!
+    #[texture(1)]
+    #[sampler(2)]
+    pub terrain_texture: Handle<Image>,
+    #[texture(3)]
+    #[sampler(4)]
+    pub mask_texture: Handle<Image>,
+}
+
+impl Material2d for LevelMaterial {
+    fn alpha_mode(&self) -> bevy::sprite::AlphaMode2d {
+        bevy::sprite::AlphaMode2d::Blend
+    }
+
+    fn fragment_shader() -> ShaderRef {
+        SHADER_ASSET_PATH.into()
+    }
+}
+
 pub fn init(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    masks: Res<Masks>,
+    mut materials: ResMut<Assets<LevelMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     textures: Res<Levels>,
+    window: Single<&Window>,
 ) {
-    let buf = images.get(&textures.level).unwrap();
-    let mut img = buf.clone();
-    img.asset_usage = RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD;
-    let img_handle = images.add(img);
+    let cursor_position = r!(window.physical_cursor_position());
 
     commands.spawn((
         Name::new("Level"),
         Level,
         Mesh2d(meshes.add(Rectangle::new(1920., 1080.))),
-        MeshMaterial2d(materials.add(img_handle)),
+        MeshMaterial2d(materials.add(LevelMaterial {
+            cursor_position,
+            mask_texture: masks.cursor.clone(),
+            terrain_texture: textures.level.clone(),
+        })),
+        RenderLayers::from_layers(&[0, 1]),
+        StateScoped(Screen::InGame),
+    ));
+
+    // Render blended GPU result (terrain plus mask) to render target for collision detection
+    let terrain_texture = r!(images.get(&textures.level));
+    let mut render_texture = terrain_texture.clone();
+    render_texture.texture_descriptor.usage = TextureUsages::COPY_DST
+        | TextureUsages::COPY_SRC
+        | TextureUsages::TEXTURE_BINDING
+        | TextureUsages::RENDER_ATTACHMENT;
+
+    let texture_handle = images.add(render_texture);
+    commands.insert_resource(TerrainRenderTarget {
+        texture: texture_handle.clone(),
+    });
+
+    commands.spawn((
+        Name::new("RenderTarget Camera"),
+        Camera2d,
+        Camera {
+            target: texture_handle.clone().into(),
+            clear_color: Color::WHITE.into(),
+            ..default()
+        },
+        RenderLayers::layer(1),
+        StateScoped(Screen::InGame),
+    ));
+
+    // Debug image
+    commands.spawn((
+        Name::new("Debug Terrain RenderTarget"),
+        Sprite {
+            image: texture_handle.clone(),
+            ..Default::default()
+        },
+        Transform::from_xyz(-850., 450., 0.).with_scale(Vec3::splat(0.1)),
         StateScoped(Screen::InGame),
     ));
 }
 
-fn draw_alpha(
-    mut images: ResMut<Assets<Image>>,
-    level: Query<&MeshMaterial2d<ColorMaterial>, With<Level>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+fn draw_alpha_gpu(
+    level: Query<&MeshMaterial2d<LevelMaterial>, With<Level>>,
+    mut materials: ResMut<Assets<LevelMaterial>>,
     mouse_button: Res<ButtonInput<MouseButton>>,
     window: Single<&Window>,
 ) {
@@ -49,74 +130,9 @@ fn draw_alpha(
         return;
     }
 
-    let Ok(l) = level.get_single() else {
-        return;
-    };
-
-    let Some(level_material) = materials.get(&l.0) else {
-        return;
-    };
-
-    let Some(texture) = &level_material.texture else {
-        return;
-    };
-
-    let Some(img) = images.get_mut(texture) else {
-        return;
-    };
-
+    let l = r!(level.get_single());
+    let level_material = r!(materials.get_mut(&l.0));
     if let Some(cursor_pos) = window.physical_cursor_position() {
-        for x in (cursor_pos.x as u32) - 10..(cursor_pos.x as u32) + 10 {
-            for y in (cursor_pos.y as u32) - 10..(cursor_pos.y as u32) + 10 {
-                if let Ok(existing_colour) = img.get_color_at(x, y) {
-                    let _ = img.set_color_at(x, y, existing_colour.with_alpha(0.));
-                }
-            }
-        }
-        // TODO: This is just a workaround for an apparent regression from RRW, similar to old
-        // issue https://github.com/bevyengine/bevy/issues/1161.
-        materials.get_mut(&l.0);
-    }
-    // for x in 0..1920 {
-    //     for y in 0..1080 {
-    //         let _ = img.set_color_at(x, y, Color::srgba(1., 1., 1., 0.5));
-    //     }
-    // }
-}
-
-fn set_level_mask(
-    mut images: ResMut<Assets<Image>>,
-    level: Single<&MeshMaterial2d<ColorMaterial>, With<Level>>,
-    materials: Res<Assets<ColorMaterial>>,
-) {
-    // NOTE: set alpha values by taking the fourth value of four bytes, which will be the alpha.
-    // From example cpu_draw:
-    //
-    // let pixel_bytes = image.pixel_bytes_mut(UVec3::new(x, y, 0)).unwrap();
-    // convert our f32 to u8
-    // pixel_bytes[3] = (a * u8::MAX as f32) as u8;
-    //
-    // note that get_color_at and set_color_at also exist, marginally slower but easier to read?
-
-    let Some(level_material) = materials.get(&level.0) else {
-        return;
-    };
-
-    let Some(texture) = &level_material.texture else {
-        return;
-    };
-
-    let Some(img) = images.get_mut(texture) else {
-        return;
-    };
-
-    for x in 0..1920 {
-        for y in 0..1080 {
-            if let Ok(col) = img.get_color_at(x, y) {
-                if col.alpha() > 0.5 {
-                    let _ = img.set_color_at(x, y, Color::srgba(1., 1., 1., 0.5));
-                }
-            }
-        }
+        level_material.cursor_position = cursor_pos;
     }
 }
