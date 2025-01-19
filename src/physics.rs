@@ -6,10 +6,7 @@ use bevy::{
         gpu_readback::{Readback, ReadbackComplete},
         render_asset::RenderAssets,
         render_graph::{self, RenderGraph, RenderLabel},
-        render_resource::{
-            binding_types::{storage_buffer, texture_storage_2d},
-            *,
-        },
+        render_resource::{binding_types::storage_buffer, *},
         renderer::{RenderContext, RenderDevice},
         storage::{GpuShaderStorageBuffer, ShaderStorageBuffer},
     },
