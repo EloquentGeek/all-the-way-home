@@ -102,9 +102,10 @@ pub fn init(
         TextureFormat::Bgra8UnormSrgb,
         RenderAssetUsages::default(),
     );
-    // TODO: feels like we need DST but not SRC here? Find out for sure.
+    // TODO: feels like we need DST but not SRC here? Find out for sure. This even seems to work
+    // without COPY_DST. Ask Discord?
     image.texture_descriptor.usage =
-        TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT;
+        TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT;
     minimap.texture = images.add(image);
 
     // Source camera

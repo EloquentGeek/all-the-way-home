@@ -61,7 +61,7 @@ impl Plugin for GamePlugin {
             assets::plugin,
             screens::plugin,
             game::plugin,
-            physics::plugin,
+            physics::PhysicsPlugin,
         ));
 
         #[cfg(feature = "dev")]
