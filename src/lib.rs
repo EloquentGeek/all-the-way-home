@@ -10,6 +10,7 @@ use bevy::{
     asset::AssetMetaCheck,
     audio::{AudioPlugin, Volume},
     prelude::*,
+    render::view::RenderLayers,
     window::WindowResolution,
 };
 
@@ -79,5 +80,12 @@ enum AppSet {
 pub struct MainCamera;
 
 fn spawn_camera(mut commands: Commands) {
-    commands.spawn((Name::new("Camera"), Camera2d, IsDefaultUiCamera, MainCamera));
+    commands.spawn((
+        Name::new("Main Camera"),
+        MainCamera,
+        Camera2d,
+        IsDefaultUiCamera,
+        // NOTE: this camera needs to "see" both the main screen and the minimap.
+        RenderLayers::from_layers(&[0, 1]),
+    ));
 }
