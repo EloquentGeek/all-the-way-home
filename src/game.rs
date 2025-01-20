@@ -1,3 +1,4 @@
+pub mod minimap;
 pub mod movement;
 pub mod yup;
 
@@ -24,7 +25,7 @@ pub enum Game {
 pub fn plugin(app: &mut App) {
     app.init_state::<Game>();
     app.enable_state_scoped_entities::<Game>();
-    app.add_plugins((movement::plugin, yup::plugin));
+    app.add_plugins((minimap::plugin, movement::plugin, yup::plugin));
     app.add_systems(OnEnter(Game::Intro), init);
 }
 

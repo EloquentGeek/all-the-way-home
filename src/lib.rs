@@ -10,7 +10,7 @@ use bevy::{
     asset::AssetMetaCheck,
     audio::{AudioPlugin, Volume},
     prelude::*,
-    render::view::RenderLayers,
+    render::{camera::Viewport, view::RenderLayers},
     window::WindowResolution,
 };
 
@@ -42,7 +42,7 @@ impl Plugin for GamePlugin {
                         fit_canvas_to_parent: true,
                         prevent_default_event_handling: true,
                         resizable: false,
-                        resolution: WindowResolution::new(1920., 1080.)
+                        resolution: WindowResolution::new(1280., 720.)
                             .with_scale_factor_override(1.0),
                         ..default()
                     }

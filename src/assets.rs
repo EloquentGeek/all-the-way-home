@@ -17,6 +17,8 @@ pub fn plugin(app: &mut App) {
 pub struct Levels {
     #[asset(path = "textures/level.png")]
     pub level: Handle<Image>,
+    #[asset(path = "textures/blank.png")]
+    pub blank: Handle<Image>,
 }
 
 #[derive(AssetCollection, Resource)]
