@@ -85,7 +85,8 @@ fn spawn_camera(mut commands: Commands) {
         MainCamera,
         Camera2d,
         IsDefaultUiCamera,
-        // NOTE: this camera needs to "see" both the main screen and the minimap.
+        // This camera needs to be able to see all our render layers in order to composite the
+        // level background and the sprites together into one view.
         RenderLayers::from_layers(&[0, 1]),
     ));
 }

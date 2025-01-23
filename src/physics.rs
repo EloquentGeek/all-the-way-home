@@ -11,8 +11,18 @@ use bevy::{
         storage::{GpuShaderStorageBuffer, ShaderStorageBuffer},
     },
 };
+use tiny_bail::prelude::*;
 
-use crate::game::yup::CharacterState;
+use crate::{
+    game::{
+        minimap::{LevelCamera, LevelRenderTarget},
+        yup::CharacterState,
+    },
+    screens::{
+        Screen,
+        ingame::playing::{Level, LevelMaterial},
+    },
+};
 
 const SHADER_ASSET_PATH: &str = "shaders/collision.wgsl";
 
@@ -23,6 +33,12 @@ impl Plugin for PhysicsPlugin {
         app.add_systems(Startup, init);
         app.add_systems(FixedUpdate, gravity);
         app.add_plugins(ExtractResourcePlugin::<CollisionsBuffer>::default());
+        app.add_systems(
+            FixedUpdate,
+            swap_textures
+                .in_set(RenderSet::PostCleanup)
+                .run_if(in_state(Screen::InGame)),
+        );
     }
 
     fn finish(&self, app: &mut App) {
@@ -45,6 +61,23 @@ impl Plugin for PhysicsPlugin {
             .resource_mut::<RenderGraph>()
             .add_node(CollisionsNodeLabel, CollisionsNode::default());
     }
+}
+
+fn swap_textures(
+    mut cam: Single<&mut Camera, With<LevelCamera>>,
+    level: Query<&MeshMaterial2d<LevelMaterial>, With<Level>>,
+    mut materials: ResMut<Assets<LevelMaterial>>,
+    mut target: ResMut<LevelRenderTarget>,
+) {
+    let l = r!(level.get_single());
+    let level_material = r!(materials.get_mut(&l.0));
+    let old_target_texture = target.texture.clone();
+    target.texture = level_material.terrain_texture.clone();
+    level_material.terrain_texture = old_target_texture;
+    cam.target = target.texture.clone().into();
+
+    // Trigger change detection
+    let _ = r!(materials.get_mut(&l.0));
 }
 
 #[derive(Resource, ExtractResource, Clone)]
@@ -72,8 +105,8 @@ fn init(mut commands: Commands, mut buffers: ResMut<Assets<ShaderStorageBuffer>>
         .observe(|trigger: Trigger<ReadbackComplete>| {
             // This matches the type which was used to create the `ShaderStorageBuffer` above,
             // and is a convenient way to interpret the data.
-            let data: Vec<u32> = trigger.event().to_shader_type();
-            info!("Buffer {:?}", data);
+            // let data: Vec<u32> = trigger.event().to_shader_type();
+            // info!("Buffer {:?}", data);
         });
     // NOTE: need to make sure nothing accesses this resource before OnEnter(Screen::InGame), or
     // else init the resource with a default.
