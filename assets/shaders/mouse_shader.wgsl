@@ -26,7 +26,7 @@ fn fragment(mesh: VertexOutput) -> @location(0) vec4<f32> {
     let distance = length(scaled_diff);
 
     // Compare with the radius of the 20px mask texture, converted to UV via the smaller of the mesh
-    // dimensions. Also, don't bother doing anything 
+    // dimensions.
     if distance < (10. / MESH_DIMENSIONS.y) {
         // Convert NDC value to UV for mask texture sampling.
         let mask_uv = (diff + vec2<f32>(1.0)) / 2.0;
