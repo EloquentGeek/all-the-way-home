@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{AppSet, screens::Screen, ui::Containers};
+use crate::{NonGameSet, screens::Screen, ui::Containers};
 
 pub fn plugin(app: &mut App) {
     app.insert_resource(ClearColor(SPLASH_BACKGROUND_COLOR));
@@ -12,8 +12,8 @@ pub fn plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            tick_fade_in_out.in_set(AppSet::TickTimers),
-            apply_fade_in_out.in_set(AppSet::Update),
+            tick_fade_in_out.in_set(NonGameSet::TickTimers),
+            apply_fade_in_out.in_set(NonGameSet::Update),
         )
             .run_if(in_state(Screen::Splash)),
     );
@@ -23,8 +23,8 @@ pub fn plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            tick_splash_timer.in_set(AppSet::TickTimers),
-            check_splash_timer.in_set(AppSet::Update),
+            tick_splash_timer.in_set(NonGameSet::TickTimers),
+            check_splash_timer.in_set(NonGameSet::Update),
         )
             .run_if(in_state(Screen::Splash)),
     );

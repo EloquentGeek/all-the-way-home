@@ -1,10 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{
-    assets::Characters,
-    physics::Gravity,
-    screens::{Screen, ingame::playing},
-};
+use crate::{GameSet, assets::Characters, physics::Gravity, screens::Screen};
 
 #[derive(Component, Debug, Default, Eq, PartialEq)]
 pub enum CharacterState {
@@ -18,8 +14,7 @@ pub enum CharacterState {
 pub struct Yup;
 
 pub fn plugin(app: &mut App) {
-    // TODO: this .after is a bit cursed, come up with better spawning logic.
-    app.add_systems(OnEnter(Screen::InGame), init.after(playing::init));
+    app.add_systems(OnEnter(Screen::InGame), init.in_set(GameSet::Init));
 }
 
 fn init(mut commands: Commands, characters: Res<Characters>) {

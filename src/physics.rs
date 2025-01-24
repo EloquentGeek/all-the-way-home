@@ -11,18 +11,8 @@ use bevy::{
         storage::{GpuShaderStorageBuffer, ShaderStorageBuffer},
     },
 };
-use tiny_bail::prelude::*;
 
-use crate::{
-    game::{
-        minimap::{LevelCamera, LevelRenderTarget},
-        yup::CharacterState,
-    },
-    screens::{
-        Screen,
-        ingame::playing::{Level, LevelMaterial},
-    },
-};
+use crate::game::yup::CharacterState;
 
 const SHADER_ASSET_PATH: &str = "shaders/collision.wgsl";
 
@@ -33,12 +23,6 @@ impl Plugin for PhysicsPlugin {
         app.add_systems(Startup, init);
         app.add_systems(FixedUpdate, gravity);
         app.add_plugins(ExtractResourcePlugin::<CollisionsBuffer>::default());
-        app.add_systems(
-            FixedUpdate,
-            swap_textures
-                .in_set(RenderSet::PostCleanup)
-                .run_if(in_state(Screen::InGame)),
-        );
     }
 
     fn finish(&self, app: &mut App) {
@@ -61,23 +45,6 @@ impl Plugin for PhysicsPlugin {
             .resource_mut::<RenderGraph>()
             .add_node(CollisionsNodeLabel, CollisionsNode::default());
     }
-}
-
-fn swap_textures(
-    mut cam: Single<&mut Camera, With<LevelCamera>>,
-    level: Query<&MeshMaterial2d<LevelMaterial>, With<Level>>,
-    mut materials: ResMut<Assets<LevelMaterial>>,
-    mut target: ResMut<LevelRenderTarget>,
-) {
-    let l = r!(level.get_single());
-    let level_material = r!(materials.get_mut(&l.0));
-    let old_target_texture = target.texture.clone();
-    target.texture = level_material.terrain_texture.clone();
-    level_material.terrain_texture = old_target_texture;
-    cam.target = target.texture.clone().into();
-
-    // Trigger change detection
-    let _ = r!(materials.get_mut(&l.0));
 }
 
 #[derive(Resource, ExtractResource, Clone)]
@@ -199,28 +166,3 @@ impl render_graph::Node for CollisionsNode {
         Ok(())
     }
 }
-// fn collision(
-//     camera: Single<(&Camera, &GlobalTransform), With<MainCamera>>,
-//     images: Res<Assets<Image>>,
-//     terrain: Res<TerrainRenderTarget>,
-//     mut yups: Query<(&mut CharacterState, &Transform), With<Yup>>,
-// ) {
-//     let level_texture = r!(images.get(&terrain.texture));
-//
-//     let (camera, camera_transform) = camera.into_inner();
-//     for (mut state, t) in &mut yups {
-//         // TODO: better way to determine this?
-//         let feet = t.translation + Vec3::new(0., -18., 0.);
-//         let collision_point = r!(camera.world_to_viewport(camera_transform, feet));
-//         let pixel =
-//             r!(level_texture.get_color_at(collision_point.x as u32, collision_point.y as u32));
-//         if pixel.alpha() > 0. {
-//             // Hey, we collided with something!
-//             *state = CharacterState::Walking;
-//         } else {
-//             // We're still falling, OR we've STARTED falling again.
-//             *state = CharacterState::Falling;
-//         }
-//     }
-// }
-//

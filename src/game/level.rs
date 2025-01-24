@@ -1,37 +1,37 @@
 use bevy::{
     prelude::*,
     render::{
-        render_resource::{AsBindGroup, ShaderRef, TextureUsages},
+        render_resource::{AsBindGroup, ShaderRef},
         view::RenderLayers,
     },
     sprite::{Material2d, Material2dPlugin},
 };
 use tiny_bail::prelude::*;
 
-use crate::{
-    MainCamera,
-    assets::{Levels, Masks},
-    game::minimap::{LevelCamera, LevelRenderTarget},
-    screens::Screen,
-};
+use crate::{GameSet, MainCamera, assets::Masks, screens::Screen};
 
-const SHADER_ASSET_PATH: &str = "shaders/mouse_shader.wgsl";
+use super::rendering::GameRenderLayers;
+
+const SHADER_ASSET_PATH: &str = "shaders/terrain.wgsl";
 
 pub fn plugin(app: &mut App) {
-    app.init_resource::<LevelViewport>();
-    app.add_systems(OnEnter(Screen::InGame), init);
-    app.add_systems(Update, draw_alpha_gpu.run_if(in_state(Screen::InGame)));
     app.add_plugins(Material2dPlugin::<LevelMaterial>::default());
+    app.init_resource::<LevelRenderTargets>();
+    app.add_systems(OnEnter(Screen::InGame), init.in_set(GameSet::Init));
+    app.add_systems(Update, update_cursor_position.in_set(GameSet::RecordInput));
+    app.add_systems(
+        RunFixedMainLoop,
+        swap_textures
+            .in_set(RunFixedMainLoopSystem::AfterFixedMainLoop)
+            .run_if(in_state(Screen::InGame)),
+    );
 }
 
 #[derive(Component, Debug)]
 pub struct Level;
 
-#[derive(Component, Debug)]
-pub struct Obstacle;
-
 #[derive(Component)]
-pub struct MovementSpeed(pub f32);
+pub struct LevelCamera;
 
 #[derive(Asset, Default, TypePath, AsBindGroup, Debug, Clone)]
 pub struct LevelMaterial {
@@ -45,16 +45,6 @@ pub struct LevelMaterial {
     pub mask_texture: Handle<Image>,
 }
 
-#[derive(Resource, Deref, DerefMut)]
-pub struct LevelViewport(Vec2);
-
-impl Default for LevelViewport {
-    fn default() -> Self {
-        // Start at the centre of the 2k mesh
-        Self(Vec2::new(640., 360.))
-    }
-}
-
 impl Material2d for LevelMaterial {
     fn alpha_mode(&self) -> bevy::sprite::AlphaMode2d {
         bevy::sprite::AlphaMode2d::Blend
@@ -65,35 +55,40 @@ impl Material2d for LevelMaterial {
     }
 }
 
+// The image we'll use to display the rendered output. Everything on the main game screen and in
+// the minimap is rendered to this image, which is swapped (via "ping-pong buffering") each frame
+// with the handle attached to LevelMaterial.
+#[derive(Resource, Default)]
+pub struct LevelRenderTargets {
+    pub destination: Handle<Image>,
+    pub source: Handle<Image>,
+}
+
 pub fn init(
     mut commands: Commands,
-    mut images: ResMut<Assets<Image>>,
-    mut level_target: ResMut<LevelRenderTarget>,
+    images: ResMut<Assets<Image>>,
+    level_targets: ResMut<LevelRenderTargets>,
     masks: Res<Masks>,
     mut materials: ResMut<Assets<LevelMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    textures: Res<Levels>,
     window: Single<&Window>,
 ) {
     let cursor_position = r!(window.physical_cursor_position());
-    let base_level_image = r!(images.get_mut(&textures.level.clone()));
-    let mut target1 = base_level_image.clone();
-    target1.texture_descriptor.usage =
-        TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT;
-    let target2 = target1.clone();
-    let handle1 = images.add(target1);
-    level_target.texture = images.add(target2);
+    let level_image = r!(images.get(&level_targets.source));
 
     commands.spawn((
         Name::new("Level"),
         Level,
-        Mesh2d(meshes.add(Rectangle::new(2560., 1440.))),
+        Mesh2d(meshes.add(Rectangle::new(
+            level_image.size().x as f32,
+            level_image.size().y as f32,
+        ))),
         MeshMaterial2d(materials.add(LevelMaterial {
             cursor_position,
             mask_texture: masks.cursor.clone(),
-            terrain_texture: handle1.clone(),
+            terrain_texture: level_targets.source.clone(),
         })),
-        RenderLayers::layer(1),
+        RenderLayers::layer(GameRenderLayers::Terrain.into()),
         StateScoped(Screen::InGame),
     ));
 
@@ -104,19 +99,19 @@ pub fn init(
         Camera {
             // Render this first.
             order: -1,
-            target: level_target.texture.clone().into(),
+            target: level_targets.destination.clone().into(),
             ..default()
         },
         // Only the level background lives on render layer 1, everything else is rendered normally
         // including sprites, etc.
-        RenderLayers::layer(1),
+        RenderLayers::layer(GameRenderLayers::Terrain.into()),
         StateScoped(Screen::InGame),
     ));
 }
 
-fn draw_alpha_gpu(
+fn update_cursor_position(
     camera: Single<(&Camera, &GlobalTransform), With<MainCamera>>,
-    level: Query<(&MeshMaterial2d<LevelMaterial>, &Transform), With<Level>>,
+    level: Single<(&MeshMaterial2d<LevelMaterial>, &Transform), With<Level>>,
     mut materials: ResMut<Assets<LevelMaterial>>,
     mouse_button: Res<ButtonInput<MouseButton>>,
     window: Single<&Window>,
@@ -126,8 +121,9 @@ fn draw_alpha_gpu(
     }
 
     let (cam, cam_transform) = *camera;
-    let (material_handle, material_transform) = r!(level.get_single());
+    let (material_handle, material_transform) = *level;
     let level_material = r!(materials.get_mut(&material_handle.0));
+
     if let Some(cursor_pos) = window.cursor_position() {
         // Convert the cursor pos to world coords. So, for the centre of the window, (640, 360)
         // will become (0, 0). Note that this flips the y value in Bevy, so we'll need to flip it
@@ -145,6 +141,31 @@ fn draw_alpha_gpu(
         // dimensions. Without it, we'll get a "ghost image" showing in the bottom right corner of
         // the window when the shader draws to the centre of it! We also invert the y value again.
         // TODO: magic numbers.
-        level_material.cursor_position = Vec2::new(texture_pos.x + 1280., -texture_pos.y + 720.);
+        level_material.cursor_position = Vec2::new(
+            texture_pos.x + window.width(),
+            -texture_pos.y + window.height(),
+        );
     }
+}
+
+fn swap_textures(
+    mut cam: Single<&mut Camera, With<LevelCamera>>,
+    level: Query<&MeshMaterial2d<LevelMaterial>, With<Level>>,
+    mut materials: ResMut<Assets<LevelMaterial>>,
+    mut level_targets: ResMut<LevelRenderTargets>,
+) {
+    let l = r!(level.get_single());
+    let level_material = r!(materials.get_mut(&l.0));
+
+    // Swap the camera target and fragment shader source.
+    level_material.terrain_texture = level_targets.destination.clone();
+    cam.target = level_targets.source.clone().into();
+
+    // Swap source and destination in the resource to prepare for next frame.
+    let old_source = level_targets.source.clone();
+    level_targets.source = level_targets.destination.clone();
+    level_targets.destination = old_source;
+
+    // Trigger change detection
+    let _ = r!(materials.get_mut(&l.0));
 }

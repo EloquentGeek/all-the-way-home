@@ -1,5 +1,6 @@
-pub mod minimap;
+pub mod level;
 pub mod movement;
+pub mod rendering;
 pub mod yup;
 
 use bevy::prelude::*;
@@ -13,23 +14,15 @@ pub enum Game {
     Complete,
     /// Player has failed the level, menu shows with offer to retry or quit.
     Failed,
-    /// Takes care of loading resources for the level to come, and providing hints to the player.
-    #[default]
-    Intro,
     /// Player has hit the pause key, pause menu shows.
     Paused,
     /// Active gameplay.
+    #[default]
     Playing,
 }
 
 pub fn plugin(app: &mut App) {
     app.init_state::<Game>();
     app.enable_state_scoped_entities::<Game>();
-    app.add_plugins((minimap::plugin, movement::plugin, yup::plugin));
-    app.add_systems(OnEnter(Game::Intro), init);
-}
-
-fn init(mut next_state: ResMut<NextState<Game>>) {
-    // TODO: later, we can use this state for intro screens and/or resource loading
-    next_state.set(Game::Playing);
+    app.add_plugins((level::plugin, movement::plugin, yup::plugin));
 }

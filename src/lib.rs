@@ -10,17 +10,28 @@ use bevy::{
     asset::AssetMetaCheck,
     audio::{AudioPlugin, Volume},
     prelude::*,
-    render::{camera::Viewport, view::RenderLayers},
+    render::view::RenderLayers,
     window::WindowResolution,
 };
+use game::{Game, rendering::GameRenderLayers};
+use screens::Screen;
 
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
+        app.configure_sets(OnEnter(Screen::InGame), GameSet::Init);
         app.configure_sets(
             Update,
-            (AppSet::TickTimers, AppSet::RecordInput, AppSet::Update).chain(),
+            (GameSet::TickTimers, GameSet::RecordInput, GameSet::Update)
+                .chain()
+                .run_if(in_state(Game::Playing)),
+        );
+        app.configure_sets(
+            Update,
+            (NonGameSet::TickTimers, NonGameSet::Update)
+                .chain()
+                .run_if(not(in_state(Screen::InGame))),
         );
 
         app.add_systems(Startup, spawn_camera);
@@ -42,6 +53,7 @@ impl Plugin for GamePlugin {
                         fit_canvas_to_parent: true,
                         prevent_default_event_handling: true,
                         resizable: false,
+                        // TODO: do these need to be hardcoded, or can we set them via `Config`?
                         resolution: WindowResolution::new(1280., 720.)
                             .with_scale_factor_override(1.0),
                         ..default()
@@ -69,10 +81,19 @@ impl Plugin for GamePlugin {
     }
 }
 
+// Game systems, always running if playing, but not while paused etc.
 #[derive(SystemSet, Debug, Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
-enum AppSet {
-    TickTimers,
+enum GameSet {
+    Init,
     RecordInput,
+    TickTimers,
+    Update,
+}
+
+// Non-game systems, run outside of Screen::InGame.
+#[derive(SystemSet, Debug, Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
+enum NonGameSet {
+    TickTimers,
     Update,
 }
 
@@ -87,6 +108,9 @@ fn spawn_camera(mut commands: Commands) {
         IsDefaultUiCamera,
         // This camera needs to be able to see all our render layers in order to composite the
         // level background and the sprites together into one view.
-        RenderLayers::from_layers(&[0, 1]),
+        RenderLayers::from_layers(&[
+            GameRenderLayers::Main.into(),
+            GameRenderLayers::Terrain.into(),
+        ]),
     ));
 }

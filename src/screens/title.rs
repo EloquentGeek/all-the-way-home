@@ -38,8 +38,8 @@ fn spawn_title_screen(mut commands: Commands) {
                 p.spawn((Name::new("Button Text"), Text::new("Start")));
             })
             .observe(
-                |_ev: Trigger<Pointer<Click>>, mut next_state: ResMut<NextState<Screen>>| {
-                    next_state.set(Screen::InGame);
+                |_ev: Trigger<Pointer<Click>>, mut next_screen_state: ResMut<NextState<Screen>>| {
+                    next_screen_state.set(Screen::Intro);
                 },
             );
         });

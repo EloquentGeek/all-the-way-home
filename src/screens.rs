@@ -1,4 +1,5 @@
 pub mod ingame;
+pub mod intro;
 mod loading;
 mod splash;
 mod title;
@@ -12,6 +13,7 @@ pub fn plugin(app: &mut App) {
     app.add_plugins((
         loading::plugin,
         ingame::plugin,
+        intro::plugin,
         splash::plugin,
         title::plugin,
     ));
@@ -20,8 +22,8 @@ pub fn plugin(app: &mut App) {
 #[derive(States, Debug, Hash, PartialEq, Eq, Clone, Default)]
 pub enum Screen {
     Loading,
-    // Over,
     InGame,
+    Intro,
     #[default]
     Splash,
     Title,
