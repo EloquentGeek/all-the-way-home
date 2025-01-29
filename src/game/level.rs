@@ -1,6 +1,7 @@
 use bevy::{
     prelude::*,
     render::{
+        extract_resource::ExtractResource,
         render_resource::{AsBindGroup, ShaderRef},
         view::RenderLayers,
     },
@@ -16,7 +17,6 @@ const SHADER_ASSET_PATH: &str = "shaders/terrain.wgsl";
 
 pub fn plugin(app: &mut App) {
     app.add_plugins(Material2dPlugin::<LevelMaterial>::default());
-    app.init_resource::<LevelRenderTargets>();
     app.add_systems(OnEnter(Screen::InGame), init.in_set(GameSet::Init));
     app.add_systems(Update, update_cursor_position.in_set(GameSet::RecordInput));
     app.add_systems(
@@ -58,7 +58,7 @@ impl Material2d for LevelMaterial {
 // The image we'll use to display the rendered output. Everything on the main game screen and in
 // the minimap is rendered to this image, which is swapped (via "ping-pong buffering") each frame
 // with the handle attached to LevelMaterial.
-#[derive(Resource, Default)]
+#[derive(Resource, ExtractResource, Default, Clone)]
 pub struct LevelRenderTargets {
     pub destination: Handle<Image>,
     pub source: Handle<Image>,

@@ -1,8 +1,14 @@
-use bevy::{prelude::*, render::render_resource::TextureUsages};
+use bevy::{
+    prelude::*,
+    render::render_resource::{TextureFormat, TextureUsages},
+};
 use tiny_bail::prelude::*;
 
 use crate::{
-    GameSet, assets::Levels, game::level::LevelRenderTargets, screens::Screen, ui::Containers,
+    assets::Levels,
+    game::{Game, level::LevelRenderTargets},
+    screens::Screen,
+    ui::Containers,
 };
 
 const INTRO_TIMER_DURATION_SECS: f32 = 0.5;
@@ -15,10 +21,9 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnExit(Screen::Intro), remove_intro_timer);
     app.add_systems(
         Update,
-        (
-            tick_intro_timer.in_set(GameSet::TickTimers),
-            check_intro_timer.in_set(GameSet::Update),
-        ),
+        (tick_intro_timer, check_intro_timer)
+            .chain()
+            .run_if(in_state(Screen::Intro)),
     );
 }
 
@@ -44,7 +49,7 @@ fn spawn_intro_screen(mut commands: Commands) {
         });
 }
 
-fn prepare_level_images(
+pub fn prepare_level_images(
     mut images: ResMut<Assets<Image>>,
     mut level_targets: ResMut<LevelRenderTargets>,
     levels: Res<Levels>,
@@ -53,7 +58,7 @@ fn prepare_level_images(
     // be modified in order to use the image as a render target. Here, we create two copies of the
     // level image: one to use as "source", the other "destination". These will be swapped after
     // rendering each frame.
-    let level_image = r!(images.get(&levels.level.clone()));
+    let level_image = r!(images.get_mut(&levels.level.clone()));
     let mut source_image = level_image.clone();
     source_image.texture_descriptor.usage =
         TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT;
@@ -80,8 +85,13 @@ fn tick_intro_timer(time: Res<Time>, mut timer: ResMut<IntroTimer>) {
     timer.0.tick(time.delta());
 }
 
-fn check_intro_timer(timer: ResMut<IntroTimer>, mut next_screen: ResMut<NextState<Screen>>) {
+fn check_intro_timer(
+    timer: ResMut<IntroTimer>,
+    mut next_screen: ResMut<NextState<Screen>>,
+    mut next_game_state: ResMut<NextState<Game>>,
+) {
     if timer.0.just_finished() {
         next_screen.set(Screen::InGame);
+        next_game_state.set(Game::Playing);
     }
 }

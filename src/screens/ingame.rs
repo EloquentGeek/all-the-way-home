@@ -4,7 +4,7 @@ use crate::game::Game;
 use bevy::prelude::*;
 
 pub fn plugin(app: &mut App) {
-    // app.add_systems(OnEnter(Screen::Playing), spawn_level);
+    app.add_plugins(pause::plugin);
 
     // app.load_resource::<PlayingMusic>();
     // app.add_systems(OnEnter(Screen::Playing), play_gameplay_music);

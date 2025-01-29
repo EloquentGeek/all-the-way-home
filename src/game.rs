@@ -17,8 +17,11 @@ pub enum Game {
     /// Player has hit the pause key, pause menu shows.
     Paused,
     /// Active gameplay.
-    #[default]
     Playing,
+    /// This isn't a great name, however we need a state that isn't Playing where prep/setup-type
+    /// tasks can take place.
+    #[default]
+    Loading,
 }
 
 pub fn plugin(app: &mut App) {

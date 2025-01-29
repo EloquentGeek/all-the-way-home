@@ -1,4 +1,5 @@
 use bevy::{
+    asset::RenderAssetUsages,
     prelude::*,
     render::{
         Render, RenderApp, RenderSet,
@@ -9,10 +10,13 @@ use bevy::{
         render_resource::{binding_types::storage_buffer, *},
         renderer::{RenderContext, RenderDevice},
         storage::{GpuShaderStorageBuffer, ShaderStorageBuffer},
+        texture::GpuImage,
     },
 };
+use binding_types::texture_storage_2d;
+use tiny_bail::prelude::*;
 
-use crate::game::yup::CharacterState;
+use crate::game::{level::LevelRenderTargets, yup::CharacterState};
 
 const SHADER_ASSET_PATH: &str = "shaders/collision.wgsl";
 
@@ -22,7 +26,10 @@ impl Plugin for PhysicsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, init);
         app.add_systems(FixedUpdate, gravity);
+
+        // Without these, the resources are not available in the pipeline.
         app.add_plugins(ExtractResourcePlugin::<CollisionsBuffer>::default());
+        app.add_plugins(ExtractResourcePlugin::<LevelRenderTargets>::default());
     }
 
     fn finish(&self, app: &mut App) {
@@ -33,7 +40,6 @@ impl Plugin for PhysicsPlugin {
                 Render,
                 prepare_bind_group
                     .in_set(RenderSet::PrepareBindGroups)
-                    // We don't need to recreate the bind group every frame
                     .run_if(not(resource_exists::<CollisionsBufferBindGroup>)),
             );
 
@@ -59,7 +65,11 @@ struct CollisionsNodeLabel;
 #[derive(Component, Debug)]
 pub struct Gravity;
 
-fn init(mut commands: Commands, mut buffers: ResMut<Assets<ShaderStorageBuffer>>) {
+fn init(
+    mut commands: Commands,
+    mut buffers: ResMut<Assets<ShaderStorageBuffer>>,
+    mut images: ResMut<Assets<Image>>,
+) {
     // TODO: figure out magic number avoidance later!
     // TODO: can we use a dynamic-sized buffer with web builds?
     let mut collisions = ShaderStorageBuffer::from(vec![0u32; 200]);
@@ -78,6 +88,31 @@ fn init(mut commands: Commands, mut buffers: ResMut<Assets<ShaderStorageBuffer>>
     // NOTE: need to make sure nothing accesses this resource before OnEnter(Screen::InGame), or
     // else init the resource with a default.
     commands.insert_resource(CollisionsBuffer(collisions));
+
+    // Ensure sensibly-formatted render target image exists to initialise the compute pipeline.
+    // These will get replaced once level loading begins in Screen::Intro.
+    let mut blank_image = Image::new_fill(
+        Extent3d {
+            // TODO: can we really get away with this, or do we need to use the 2k image size like
+            // the real levels? Inquiring minds want to know.
+            width: 2560,
+            height: 1440,
+            ..default()
+        },
+        TextureDimension::D2,
+        &[0, 0, 0, 0],
+        TextureFormat::Rgba8Unorm,
+        // We don't care if this image ever exists in the main world. It's entirely a GPU resource.
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    blank_image.texture_descriptor.usage |=
+        TextureUsages::COPY_SRC | TextureUsages::STORAGE_BINDING;
+    let blank_handle = images.add(blank_image);
+
+    commands.insert_resource(LevelRenderTargets {
+        destination: blank_handle.clone(),
+        source: blank_handle.clone(),
+    });
 }
 
 fn gravity(mut has_gravity: Query<(&CharacterState, &mut Transform), With<Gravity>>) {
@@ -92,14 +127,27 @@ fn prepare_bind_group(
     buffers: Res<RenderAssets<GpuShaderStorageBuffer>>,
     collisions: Res<CollisionsBuffer>,
     mut commands: Commands,
+    mut images: ResMut<RenderAssets<GpuImage>>,
+    level_targets: Res<LevelRenderTargets>,
     pipeline: Res<CollisionsPipeline>,
     render_device: Res<RenderDevice>,
 ) {
     let shader_storage = buffers.get(&collisions.0).unwrap();
+    let destination_image = r!(images.get_mut(&level_targets.destination));
+
+    // NOTE: forcing this from the Srgb variant will lead to incorrect gamma values. Since we're
+    // mostly interested in the alpha, which remains the same, this shouldn't be a problem. See
+    // https://docs.rs/bevy_color/latest/bevy_color/#conversion. We could also do away with this if
+    // compute shaders ever support storage textures that are Rgba8UnormSrgb.
+    destination_image.texture_format = TextureFormat::Rgba8Unorm;
+
     let bind_group = render_device.create_bind_group(
         None,
         &pipeline.layout,
-        &BindGroupEntries::sequential((shader_storage.buffer.as_entire_buffer_binding(),)),
+        &BindGroupEntries::sequential((
+            shader_storage.buffer.as_entire_buffer_binding(),
+            destination_image.texture_view.into_binding(),
+        )),
     );
     commands.insert_resource(CollisionsBufferBindGroup(bind_group));
 }
@@ -117,7 +165,10 @@ impl FromWorld for CollisionsPipeline {
             None,
             &BindGroupLayoutEntries::sequential(
                 ShaderStages::COMPUTE,
-                (storage_buffer::<Vec<u32>>(false),),
+                (
+                    storage_buffer::<Vec<u32>>(false),
+                    texture_storage_2d(TextureFormat::Rgba8Unorm, StorageTextureAccess::ReadWrite),
+                ),
             ),
         );
         let shader = world.load_asset(SHADER_ASSET_PATH);
@@ -147,7 +198,14 @@ impl render_graph::Node for CollisionsNode {
     ) -> Result<(), render_graph::NodeRunError> {
         let pipeline_cache = world.resource::<PipelineCache>();
         let pipeline = world.resource::<CollisionsPipeline>();
-        let bind_group = world.resource::<CollisionsBufferBindGroup>();
+
+        // NOTE: we need to alter the bindgroup for each new level, because the image we're passing
+        // to the compute shader CHANGES each time we load a level.
+        let Some(bind_group) = world.get_resource::<CollisionsBufferBindGroup>() else {
+            // TODO: this is not great, but lets us await the eventual insertion of the above
+            // resource when we arrive at the intro screen for each level?
+            return Ok(());
+        };
 
         if let Some(init_pipeline) = pipeline_cache.get_compute_pipeline(pipeline.pipeline) {
             let mut pass =
