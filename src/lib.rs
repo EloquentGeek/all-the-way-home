@@ -10,14 +10,10 @@ use bevy::{
     asset::AssetMetaCheck,
     audio::{AudioPlugin, Volume},
     prelude::*,
-    render::{
-        RenderPlugin,
-        settings::{RenderCreation, WgpuFeatures, WgpuSettings},
-        view::RenderLayers,
-    },
+    render::view::RenderLayers,
     window::WindowResolution,
 };
-use game::{Game, level::LevelRenderTargets, rendering::GameRenderLayers};
+use game::{Game, rendering::GameRenderLayers};
 use screens::Screen;
 
 pub struct GamePlugin;
@@ -50,14 +46,6 @@ impl Plugin for GamePlugin {
                     ..default()
                 })
                 .set(ImagePlugin::default_nearest())
-                // .set(RenderPlugin {
-                //     render_creation: RenderCreation::Automatic(WgpuSettings {
-                //         // WARN this is a native only feature. It will not work with webgl or webgpu
-                //         features: WgpuFeatures::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
-                //         ..default()
-                //     }),
-                //     ..default()
-                // })
                 .set(WindowPlugin {
                     primary_window: Window {
                         title: "all the way home".to_string(),
@@ -84,8 +72,8 @@ impl Plugin for GamePlugin {
         app.add_plugins((
             assets::plugin,
             game::plugin,
+            physics::plugin,
             screens::plugin,
-            physics::PhysicsPlugin,
         ));
 
         #[cfg(feature = "dev")]

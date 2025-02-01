@@ -1,15 +1,18 @@
 use bevy::{
+    asset::RenderAssetUsages,
     prelude::*,
     render::{
         extract_resource::ExtractResource,
-        render_resource::{AsBindGroup, ShaderRef},
+        render_resource::{AsBindGroup, ShaderRef, TextureFormat, TextureUsages},
         view::RenderLayers,
     },
     sprite::{Material2d, Material2dPlugin},
 };
 use tiny_bail::prelude::*;
 
-use crate::{GameSet, MainCamera, assets::Masks, screens::Screen};
+use crate::{
+    GameSet, MainCamera, assets::Masks, physics::collision::CollisionsTerrain, screens::Screen,
+};
 
 use super::rendering::GameRenderLayers;
 
@@ -17,7 +20,10 @@ const SHADER_ASSET_PATH: &str = "shaders/terrain.wgsl";
 
 pub fn plugin(app: &mut App) {
     app.add_plugins(Material2dPlugin::<LevelMaterial>::default());
-    app.add_systems(OnEnter(Screen::InGame), init.in_set(GameSet::Init));
+    app.add_systems(
+        OnEnter(Screen::InGame),
+        (init, init_compute_shader).chain().in_set(GameSet::Init),
+    );
     app.add_systems(Update, update_cursor_position.in_set(GameSet::RecordInput));
     app.add_systems(
         RunFixedMainLoop,
@@ -109,6 +115,20 @@ pub fn init(
     ));
 }
 
+fn init_compute_shader(
+    mut collisions_terrain: ResMut<CollisionsTerrain>,
+    mut images: ResMut<Assets<Image>>,
+    level_targets: ResMut<LevelRenderTargets>,
+) {
+    let level_image = r!(images.get(&level_targets.destination));
+    let mut collisions_terrain_image = level_image.clone();
+    collisions_terrain_image.asset_usage = RenderAssetUsages::RENDER_WORLD;
+    collisions_terrain_image.texture_descriptor.format = TextureFormat::Rgba8Unorm;
+    collisions_terrain_image.texture_descriptor.usage =
+        TextureUsages::COPY_SRC | TextureUsages::STORAGE_BINDING;
+    *collisions_terrain = CollisionsTerrain(images.add(collisions_terrain_image));
+}
+
 fn update_cursor_position(
     camera: Single<(&Camera, &GlobalTransform), With<MainCamera>>,
     level: Single<(&MeshMaterial2d<LevelMaterial>, &Transform), With<Level>>,
@@ -140,7 +160,6 @@ fn update_cursor_position(
         // This final step is necessary to offset the position passed to the shader by the window
         // dimensions. Without it, we'll get a "ghost image" showing in the bottom right corner of
         // the window when the shader draws to the centre of it! We also invert the y value again.
-        // TODO: magic numbers.
         level_material.cursor_position = Vec2::new(
             texture_pos.x + window.width(),
             -texture_pos.y + window.height(),
@@ -150,12 +169,25 @@ fn update_cursor_position(
 
 fn swap_textures(
     mut cam: Single<&mut Camera, With<LevelCamera>>,
+    collisions_terrain: ResMut<CollisionsTerrain>,
+    mut images: ResMut<Assets<Image>>,
     level: Query<&MeshMaterial2d<LevelMaterial>, With<Level>>,
     mut materials: ResMut<Assets<LevelMaterial>>,
     mut level_targets: ResMut<LevelRenderTargets>,
 ) {
     let l = r!(level.get_single());
     let level_material = r!(materials.get_mut(&l.0));
+
+    // Create a clone of the current destination render target, to use as a source of truth for
+    // collision detection. This must be correctly formatted to be accepted by the compute shader.
+    // TODO: performance concerns!
+    let destination_image = r!(images.get(&level_targets.destination));
+    let mut collisions_terrain_image = destination_image.clone();
+    collisions_terrain_image.asset_usage = RenderAssetUsages::RENDER_WORLD;
+    collisions_terrain_image.texture_descriptor.format = TextureFormat::Rgba8Unorm;
+    collisions_terrain_image.texture_descriptor.usage =
+        TextureUsages::COPY_SRC | TextureUsages::STORAGE_BINDING;
+    images.insert(&collisions_terrain.0, collisions_terrain_image);
 
     // Swap the camera target and fragment shader source.
     level_material.terrain_texture = level_targets.destination.clone();
