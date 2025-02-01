@@ -123,15 +123,22 @@ fn init_compute_shader(
     let level_image = r!(images.get(&level_targets.destination));
     let mut collisions_terrain_image = level_image.clone();
     collisions_terrain_image.asset_usage = RenderAssetUsages::RENDER_WORLD;
+
+    // NOTE: forcing this from the Srgb variant will lead to incorrect gamma values. Since we're
+    // mostly interested in the alpha, which remains the same, this shouldn't be a problem. See
+    // https://docs.rs/bevy_color/latest/bevy_color/#conversion. We could also do away with this if
+    // compute shaders ever support storage textures that are Rgba8UnormSrgb.
     collisions_terrain_image.texture_descriptor.format = TextureFormat::Rgba8Unorm;
-    collisions_terrain_image.texture_descriptor.usage =
+
+    collisions_terrain_image.texture_descriptor.usage |=
         TextureUsages::COPY_SRC | TextureUsages::STORAGE_BINDING;
     *collisions_terrain = CollisionsTerrain(images.add(collisions_terrain_image));
 }
 
+// TODO: don't run this unless in game
 fn update_cursor_position(
     camera: Single<(&Camera, &GlobalTransform), With<MainCamera>>,
-    level: Single<(&MeshMaterial2d<LevelMaterial>, &Transform), With<Level>>,
+    level: Query<(&MeshMaterial2d<LevelMaterial>, &Transform), With<Level>>,
     mut materials: ResMut<Assets<LevelMaterial>>,
     mouse_button: Res<ButtonInput<MouseButton>>,
     window: Single<&Window>,
@@ -141,8 +148,8 @@ fn update_cursor_position(
     }
 
     let (cam, cam_transform) = *camera;
-    let (material_handle, material_transform) = *level;
-    let level_material = r!(materials.get_mut(&material_handle.0));
+    let (material_handle, material_transform) = rq!(level.get_single());
+    let level_material = rq!(materials.get_mut(&material_handle.0));
 
     if let Some(cursor_pos) = window.cursor_position() {
         // Convert the cursor pos to world coords. So, for the centre of the window, (640, 360)
@@ -185,7 +192,7 @@ fn swap_textures(
     let mut collisions_terrain_image = destination_image.clone();
     collisions_terrain_image.asset_usage = RenderAssetUsages::RENDER_WORLD;
     collisions_terrain_image.texture_descriptor.format = TextureFormat::Rgba8Unorm;
-    collisions_terrain_image.texture_descriptor.usage =
+    collisions_terrain_image.texture_descriptor.usage |=
         TextureUsages::COPY_SRC | TextureUsages::STORAGE_BINDING;
     images.insert(&collisions_terrain.0, collisions_terrain_image);
 

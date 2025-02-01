@@ -18,7 +18,7 @@ use tiny_bail::prelude::*;
 
 use crate::game::{
     level::{Level, LevelRenderTargets},
-    yup::Yup,
+    yup::{CharacterState, Yup},
 };
 
 const SHADER_ASSET_PATH: &str = "shaders/collision.wgsl";
@@ -26,6 +26,8 @@ const YUP_COUNT: usize = 100;
 // NOTE: actual number of u32's is 400, but this supports byte alignment via use of Vec4.
 // In other words, we're passing 400 values, the last of each 4 will be ignored as padding.
 const YUP_BUFFER_SIZE: usize = 100;
+// Offset to the centre of the Yup sprite, to reflect the position of their feet!
+const YUP_FEET_FACTOR: f32 = 18.;
 
 pub struct CollisionPlugin;
 
@@ -86,6 +88,9 @@ impl YupBuffer {
     }
 }
 
+#[derive(Resource, Default, Deref, DerefMut)]
+struct YupEntities(pub Vec<Entity>);
+
 #[derive(Resource)]
 struct CollisionsBufferBindGroup(BindGroup);
 
@@ -105,25 +110,39 @@ fn init(
 
     commands
         .spawn(Readback::buffer(collisions.clone()))
-        .observe(|trigger: Trigger<ReadbackComplete>| {
-            // This matches the type which was used to create the `ShaderStorageBuffer` above,
-            // and is a convenient way to interpret the data.
-            let data: Vec<u32> = trigger.event().to_shader_type();
-            info!("Buffer {:?}", data);
-        });
+        .observe(
+            |trigger: Trigger<ReadbackComplete>,
+             mut yups: Query<&mut CharacterState, With<Yup>>,
+             yup_entities: Res<YupEntities>| {
+                // This matches the type which was used to create the `ShaderStorageBuffer` above,
+                // and is a convenient way to interpret the data.
+                let collisions: Vec<u32> = trigger.event().to_shader_type();
+                info!("Buffer {:?}", collisions);
+                // Compare each value with a Yup entity id, and update said Yup's.
+                for (i, collision) in collisions.iter().enumerate() {
+                    let entity = r!(yup_entities.get(i));
+                    let mut state = r!(yups.get_mut(*entity));
+
+                    if *collision == 1 {
+                        *state = CharacterState::Walking;
+                    } else {
+                        *state = CharacterState::Falling;
+                    }
+                }
+            },
+        );
     // NOTE: need to make sure nothing accesses this resource before OnEnter(Screen::InGame), or
     // else init the resource with a default.
     commands.insert_resource(CollisionsBuffer(collisions));
 
     // Also init an empty buffer for our Yup locations.
     commands.insert_resource(YupBuffer::default());
+    commands.insert_resource(YupEntities::default());
 
     // Ensure sensibly-formatted render target image exists to initialise the compute pipeline.
     // These will get replaced once level loading begins in Screen::Intro.
     let mut blank_image = Image::new_fill(
         Extent3d {
-            // TODO: can we really get away with this, or do we need to use the 2k image size like
-            // the real levels? Inquiring minds want to know.
             width: 2560,
             height: 1440,
             ..default()
@@ -155,14 +174,11 @@ fn init(
 //     TextureFormat::Rgba8UnormSrgb `destination` image (the current render target)
 //   - switch its TextureFormat
 //   - and use it as the source of truth for collision detection
-//
-// Cloning 2k images like this each frame seems expensive, but perhaps if there is no to-GPU copy
-// involved, it can be done cheaply?
 fn prepare_bind_group(
     collisions_buf: Res<CollisionsBuffer>,
     collisions_terrain: Res<CollisionsTerrain>,
     mut commands: Commands,
-    mut images: ResMut<RenderAssets<GpuImage>>,
+    images: Res<RenderAssets<GpuImage>>,
     pipeline: Res<CollisionsPipeline>,
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
@@ -170,15 +186,9 @@ fn prepare_bind_group(
     yup_buf: Res<YupBuffer>,
 ) {
     let collisions_buffer = r!(shader_storage_buffers.get(&collisions_buf.0));
-    let terrain_image = r!(images.get_mut(&collisions_terrain.0));
+    let terrain_image = r!(images.get(&collisions_terrain.0));
     let mut yup_buffer = yup_buf.get_uniform();
     yup_buffer.write_buffer(&render_device, &render_queue);
-
-    // NOTE: forcing this from the Srgb variant will lead to incorrect gamma values. Since we're
-    // mostly interested in the alpha, which remains the same, this shouldn't be a problem. See
-    // https://docs.rs/bevy_color/latest/bevy_color/#conversion. We could also do away with this if
-    // compute shaders ever support storage textures that are Rgba8UnormSrgb.
-    terrain_image.texture_format = TextureFormat::Rgba8Unorm;
 
     let bind_group = render_device.create_bind_group(
         None,
@@ -308,17 +318,22 @@ impl render_graph::Node for CollisionsNode {
 }
 
 fn update_yup_locations(
-    level_transform: Single<&Transform, With<Level>>,
+    level_transform: Query<&Transform, With<Level>>,
     mut yup_buf: ResMut<YupBuffer>,
+    mut yup_entities: ResMut<YupEntities>,
     window: Single<&Window>,
     yups: Query<(Entity, &Transform), With<Yup>>,
 ) {
+    let lt = r!(level_transform.get_single());
+    let mut entities: Vec<Entity> = vec![];
+
     // We need to pass
-    //  - entity id
     //  - collision-point-x
     //  - collision-point-y
+    //  - entity id
     for (i, (yup, t)) in yups.iter().enumerate() {
-        let texture_pos = level_transform
+        entities.push(yup);
+        let texture_pos = lt
             .compute_matrix()
             .inverse()
             .transform_point3(t.translation);
@@ -327,9 +342,11 @@ fn update_yup_locations(
             // y, z is the id).
             texture_pos.x + window.width(),
             // Note the y-value inversion to convert from world pos.
-            -texture_pos.y + window.height(),
+            -texture_pos.y + window.height() + YUP_FEET_FACTOR,
             yup.index() as f32,
             0.0, // Unused padding.
         );
     }
+
+    *yup_entities = YupEntities(entities);
 }

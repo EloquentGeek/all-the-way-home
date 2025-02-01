@@ -10,7 +10,7 @@ pub enum CharacterState {
 }
 
 #[derive(Component, Debug)]
-#[require(CharacterState)]
+#[require(CharacterState, Gravity)]
 pub struct Yup;
 
 pub fn plugin(app: &mut App) {
@@ -21,7 +21,6 @@ fn init(mut commands: Commands, characters: Res<Characters>) {
     commands.spawn((
         Name::new("Yup"),
         Yup,
-        Gravity,
         Sprite {
             image: characters.yup.clone(),
             ..default()
